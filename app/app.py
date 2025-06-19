@@ -767,22 +767,47 @@ def display_chat_history_sidebar():
         st.success("New chat started!")
         st.rerun()
 
-    # ADD THIS CHECK - Only load chat history if user is authenticated
+    # Only load chat history if user is authenticated
     if not is_authenticated():
         st.sidebar.info("🔒 Please log in to see chat history")
         return
 
     # Display available chats
-    # Re-fetch available chats to reflect latest from Firestore
-    # Only try to get available chats if db is successfully initialized
     if db is not None:
         st.session_state.available_chats = get_available_chats() 
     else:
-        st.session_state.available_chats = [] # Ensure it's always a list
+        st.session_state.available_chats = []
         st.sidebar.warning("Firestore client not available. Cannot load chat history.")
 
-    # ... rest of your existing chat history code remains the same
-    # ... rest of your existing chat history code ...
+    # --- Chat selection and loading logic ---
+    available_chats = st.session_state.available_chats
+    chat_options = [
+        f"{chat['preview']} ({chat['created_at'][:10]})" for chat in available_chats
+    ]
+    chat_id_map = {f"{chat['preview']} ({chat['created_at'][:10]})": chat['id'] for chat in available_chats}
+
+    if chat_options:
+        # Default selection is the current chat if present, else the first
+        current_label = None
+        for label, cid in chat_id_map.items():
+            if cid == st.session_state.current_chat_id:
+                current_label = label
+                break
+        selected_label = st.sidebar.selectbox(
+            "Select a chat session:",
+            chat_options,
+            index=chat_options.index(current_label) if current_label in chat_options else 0,
+            key="chat_selectbox"
+        )
+        selected_chat_id = chat_id_map[selected_label]
+        # If the selected chat is not the current one, load it
+        if selected_chat_id != st.session_state.current_chat_id:
+            st.session_state.current_chat_id = selected_chat_id
+            st.session_state.chat_history = load_chat_history(selected_chat_id)
+            st.success("Loaded previous chat history!")
+            st.rerun()
+    else:
+        st.sidebar.info("No previous chats found. Start a new chat!")
 
 
 def display_agent_selection():
